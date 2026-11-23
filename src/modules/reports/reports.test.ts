@@ -419,4 +419,29 @@ describe('reportes: cálculos con fechas exactas', () => {
     expect((await get(auth, 'sales-series', { ...MARCH, granularity: 'hour' })).status).toBe(400);
     expect((await get(auth, 'summary', { from: '2026-3-1', to: '2026-03-02' })).status).toBe(400);
   });
+
+  it('fechas que no existen → 400 (y sin errores de rango de más)', async () => {
+    const s = await scenario();
+    const auth = bearer(s.adminA);
+    for (const bad of [
+      '2026-02-30',
+      '2026-02-29',
+      '2026-04-31',
+      '2026-01-32',
+      '2026-00-10',
+      '2026-01-00',
+    ]) {
+      const res = await get(auth, 'summary', { from: bad, to: '2026-10-31' });
+      expect(res.status, bad).toBe(400);
+      expect(res.body.error.details.fieldErrors.from).toEqual(['Esa fecha no existe']);
+      expect(res.body.error.details.fieldErrors.to).toBeUndefined();
+    }
+    expect((await get(auth, 'summary', { from: '2028-02-29', to: '2028-03-01' })).status).toBe(200); // bisiesto
+    // El mismo validador se usa en el resto de los filtros por fecha.
+    const purchases = await request(app)
+      .get('/api/v1/purchases')
+      .set(auth)
+      .query({ from: '2026-04-31' });
+    expect(purchases.status).toBe(400);
+  });
 });

@@ -1,11 +1,7 @@
 import { z } from 'zod';
 import { paginationQuerySchema } from '../../common/utils/pagination.js';
-import { objectIdSchema, optionalText } from '../../common/validation.js';
+import { calendarDateSchema, objectIdSchema, optionalText } from '../../common/validation.js';
 import { centsSchema } from '../products/product.schemas.js';
-
-export const calendarDateSchema = z
-  .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Fecha inválida (AAAA-MM-DD)');
 
 const purchaseItemSchema = z.object({
   productId: objectIdSchema,

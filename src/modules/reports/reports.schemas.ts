@@ -1,8 +1,7 @@
 import { z } from 'zod';
 import { UNIT_CODES } from '../../common/utils/qty.js';
-import { objectIdSchema } from '../../common/validation.js';
+import { calendarDateSchema, isCalendarDate, objectIdSchema } from '../../common/validation.js';
 import { PAYMENT_METHODS } from '../cash-sessions/cash-session.model.js';
-import { calendarDateSchema } from '../purchases/purchase.schemas.js';
 import { daysBetween, GRANULARITIES } from './periods.js';
 
 /** Hasta 5 años por consulta (suficiente para comparar años; evita consultas gigantes). */
@@ -18,13 +17,17 @@ const rangeFields = {
   method: z.enum(PAYMENT_METHODS, { error: 'Forma de pago inválida' }).optional(),
 };
 
+/** Las reglas de rango solo aplican con ambas fechas válidas (si no, bastan los errores de cada una). */
+const bothValid = (q: { from: string; to: string }) =>
+  isCalendarDate(String(q.from)) && isCalendarDate(String(q.to));
+
 function withRangeChecks<T extends z.ZodType<{ from: string; to: string }>>(schema: T) {
   return schema
-    .refine((q) => q.from <= q.to, {
+    .refine((q) => !bothValid(q) || q.from <= q.to, {
       message: 'La fecha inicial debe ser anterior a la final',
       path: ['to'],
     })
-    .refine((q) => daysBetween(q.from, q.to) <= MAX_DAYS, {
+    .refine((q) => !bothValid(q) || daysBetween(q.from, q.to) <= MAX_DAYS, {
       message: 'El rango no puede pasar de 5 años',
       path: ['from'],
     });
