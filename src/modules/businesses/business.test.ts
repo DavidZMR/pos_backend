@@ -44,6 +44,21 @@ describe('administración de negocios (superadmin)', () => {
     expect(removed.body.data.active).toBe(false);
   });
 
+  it('permite borrar un campo opcional enviando texto vacío', async () => {
+    const auth = bearer(await createUser({ role: 'superadmin' }));
+    const created = await request(app)
+      .post('/api/v1/businesses')
+      .set(auth)
+      .send({ name: 'Con teléfono', phone: '322 000 0000' });
+    const cleared = await request(app)
+      .patch(`/api/v1/businesses/${created.body.data.id}`)
+      .set(auth)
+      .send({ phone: '' });
+
+    expect(cleared.status).toBe(200);
+    expect(cleared.body.data.phone).toBe('');
+  });
+
   it('valida datos (400) y zona horaria', async () => {
     const auth = bearer(await createUser({ role: 'superadmin' }));
     const res = await request(app)
