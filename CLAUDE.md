@@ -8,16 +8,16 @@ Node 24 · Express 5 · TypeScript 7 (ESM, `module: NodeNext`) · Mongoose 9 · 
 
 ## Comandos
 
-| Comando                           | Qué hace                                                                                                                              |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `npm run dev`                     | Servidor con recarga (`tsx watch`), lee `.env`                                                                                        |
-| `npm run dev:memory -- --seed`    | Servidor SIN Atlas: replica set en memoria + marisquería demo (demo.root / demo.admin / demo.caja, clave `Demo12345`). Datos efímeros |
+| Comando                           | Qué hace                                                                                                                                                                                                                                        |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run dev`                     | Servidor con recarga (`tsx watch`), lee `.env`                                                                                                                                                                                                  |
+| `npm run dev:memory -- --seed`    | Servidor SIN Atlas: replica set en memoria + marisquería demo (demo.root / demo.admin / demo.caja, clave `Demo12345`). Datos efímeros                                                                                                           |
 | `npm run dev:memory -- --history` | Lo anterior + ~14 meses de historial ficticio (ventas, compras, cortes, cambios de precio, cancelaciones) para reportes; cajeros demo.caja2/demo.caja3 y negocio Abarrotes La Esquina (demo.esquina). `--months=N`. Reproducible (semilla fija) |
-| `npm test`                        | Pruebas (Vitest)                                                                                                                      |
-| `npm run typecheck`               | `tsc --noEmit`                                                                                                                        |
-| `npm run lint` / `npm run format` | Biome                                                                                                                                 |
-| `npm run build`                   | Compila a `dist/` (lo empaqueta Electron)                                                                                             |
-| `npm start`                       | Ejecuta `dist/server.js`                                                                                                              |
+| `npm test`                        | Pruebas (Vitest)                                                                                                                                                                                                                                |
+| `npm run typecheck`               | `tsc --noEmit`                                                                                                                                                                                                                                  |
+| `npm run lint` / `npm run format` | Biome                                                                                                                                                                                                                                           |
+| `npm run build`                   | Compila a `dist/` (lo empaqueta Electron)                                                                                                                                                                                                       |
+| `npm start`                       | Ejecuta `dist/server.js`                                                                                                                                                                                                                        |
 
 ## Estructura
 
