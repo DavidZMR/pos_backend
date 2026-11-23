@@ -226,15 +226,12 @@ describe('entradas de mercancía', () => {
       .post('/api/v1/purchases')
       .set(auth)
       .send({ purchaseDate: '2026-03-01', items: line });
-    await request(app)
-      .post('/api/v1/purchases')
-      .set(auth)
-      .send({
-        purchaseDate: '2026-03-02',
-        supplierId: supplier.id,
-        invoiceNumber: 'NOTA-7',
-        items: line,
-      });
+    await request(app).post('/api/v1/purchases').set(auth).send({
+      purchaseDate: '2026-03-02',
+      supplierId: supplier.id,
+      invoiceNumber: 'NOTA-7',
+      items: line,
+    });
 
     const folios = async (query: string) =>
       (await request(app).get(`/api/v1/purchases?${query}`).set(auth)).body.data.map(
