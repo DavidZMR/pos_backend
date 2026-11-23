@@ -11,17 +11,14 @@ async function setup() {
   const admin = bearer(seed.adminA);
   const caja = bearer(seed.employeeA);
   const product = (
-    await request(app)
-      .post('/api/v1/products')
-      .set(admin)
-      .send({
-        code: '1',
-        name: 'Coctel',
-        unit: 'pz',
-        salePriceCents: 18500,
-        taxRateBp: 1600,
-        initialStock: 50,
-      })
+    await request(app).post('/api/v1/products').set(admin).send({
+      code: '1',
+      name: 'Coctel',
+      unit: 'pz',
+      salePriceCents: 18500,
+      taxRateBp: 1600,
+      initialStock: 50,
+    })
   ).body.data as { id: string };
   return { ...seed, admin, caja, product };
 }
