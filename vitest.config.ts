@@ -4,6 +4,8 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['src/**/*.test.ts'],
+    globalSetup: ['src/test/global-setup.ts'],
+    hookTimeout: 60_000,
     env: {
       NODE_ENV: 'test',
       LOG_LEVEL: 'silent',

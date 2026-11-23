@@ -1,10 +1,9 @@
 import type { AddressInfo } from 'node:net';
 import { createApp } from './app.js';
 import { logger } from './common/logger.js';
-import { loadEnv, parseCorsOrigins } from './config/env.js';
+import { parseCorsOrigins } from './config/env.js';
+import { env } from './config/index.js';
 import { connectDatabase, disconnectDatabase } from './db/connection.js';
-
-const env = loadEnv();
 
 const app = createApp({ corsOrigins: parseCorsOrigins(env.CORS_ORIGINS) });
 
