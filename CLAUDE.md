@@ -8,14 +8,15 @@ Node 24 · Express 5 · TypeScript 7 (ESM, `module: NodeNext`) · Mongoose 9 · 
 
 ## Comandos
 
-| Comando                           | Qué hace                                       |
-| --------------------------------- | ---------------------------------------------- |
-| `npm run dev`                     | Servidor con recarga (`tsx watch`), lee `.env` |
-| `npm test`                        | Pruebas (Vitest)                               |
-| `npm run typecheck`               | `tsc --noEmit`                                 |
-| `npm run lint` / `npm run format` | Biome                                          |
-| `npm run build`                   | Compila a `dist/` (lo empaqueta Electron)      |
-| `npm start`                       | Ejecuta `dist/server.js`                       |
+| Comando                           | Qué hace                                                                                                                              |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run dev`                     | Servidor con recarga (`tsx watch`), lee `.env`                                                                                        |
+| `npm run dev:memory -- --seed`    | Servidor SIN Atlas: replica set en memoria + marisquería demo (demo.root / demo.admin / demo.caja, clave `Demo12345`). Datos efímeros |
+| `npm test`                        | Pruebas (Vitest)                                                                                                                      |
+| `npm run typecheck`               | `tsc --noEmit`                                                                                                                        |
+| `npm run lint` / `npm run format` | Biome                                                                                                                                 |
+| `npm run build`                   | Compila a `dist/` (lo empaqueta Electron)                                                                                             |
+| `npm start`                       | Ejecuta `dist/server.js`                                                                                                              |
 
 ## Estructura
 
@@ -30,22 +31,29 @@ src/
   common/
     http/              response.ts (sendOk/sendCreated/sendError), errors.ts (AppError y helpers)
     middleware/        error-handler (+ notFoundHandler)
-    utils/             decimal, money, qty, text (normalizeText/containsRegex), pagination, flatten
+    utils/             decimal, money, qty, text (normalizeText/containsRegex), pagination, flatten,
+                       dates (dayRange/startOfDayInZone: días en la zona horaria del negocio)
     validation.ts      objectIdSchema, idParamsSchema, optionalText
+  db/transaction.ts    withTransaction(session => …) — requiere replica set
   modules/
     auth/              login/me/change-password, token (JWT), password (bcrypt),
                        auth.middleware (authenticate, authorize, requireUser),
                        tenant.middleware (resolveTenant, requireBusinessId, BUSINESS_HEADER)
     businesses/        CRUD superadmin + /current (negocio propio)
     users/             CRUD con reglas por rol
+    categories/, suppliers/  catálogos simples (handlers directamente en *.routes.ts)
+    products/          productos (código corto único, barcode opcional único), price-history
+    inventory/         movement.model: kárdex + applyStockChange() (ÚNICO camino para tocar stock)
+    counters/          nextSequence(businessId, key, session): folios consecutivos
     <entidad>/
       <entidad>.model.ts      esquema Mongoose (businessId + índices compuestos)
       <entidad>.schemas.ts    Zod de entrada (create/update/list query)
       <entidad>.service.ts    lógica; recibe actor/businessId explícitos
-      <entidad>.controller.ts parsea con Zod (`schema.parse(req.body)`) y llama al service
-      <entidad>.routes.ts     authenticate → authorize(roles) → resolveTenant() → controller
+      <entidad>.controller.ts opcional: en módulos simples los handlers viven en routes
+      <entidad>.routes.ts     authenticate → authorize(roles) → resolveTenant() → handlers
       <entidad>.test.ts       integración con Supertest
   scripts/seed-superadmin.ts  crea el primer superadmin
+  dev/                 solo desarrollo (excluido del build): dev-memory, demo-seed, local-mongod
   test/                global-setup (ReplSet en memoria), db.ts (useTestDatabase), factories.ts
 ```
 
@@ -60,7 +68,11 @@ src/
 - Multi-tenant: todo query de negocio incluye `businessId` tomado de `requireBusinessId(req)` (lo pone `resolveTenant()`), jamás del body. Admin/empleado: siempre su negocio. Superadmin: encabezado `x-business-id`.
 - Recursos de otro negocio responden **404** (no se revela que existen); acciones no permitidas por rol, **403**.
 - Hooks de Mongoose 9: tipa `this` explícitamente (`function (this: XDocument) {…}`).
-- Operaciones que tocan varias colecciones (venta, compra, cancelaciones) usan **transacción** (`session.withTransaction`).
+- Operaciones que tocan varias colecciones (venta, compra, cancelaciones, alta con existencia) usan **`withTransaction`** y pasan `{ session }` a cada lectura/escritura. El MongoDB local standalone NO soporta transacciones: usar `npm run dev:memory` o Atlas.
+- **Existencias**: nunca asignar `product.stock` a mano; usar `applyStockChange()` (actualiza stock + renglón de kárdex con antes/después, usuario y referencia).
+- **Precios**: cada cambio de `salePriceCents`/`costCents` se registra con `recordPriceChange()` (fuente create/manual/purchase).
+- Conflictos atribuibles a un campo: `fieldConflict('code', mensaje)` → 409 con `details.fieldErrors` (el frontend lo pinta en el input).
+- Filtros por fecha: recibir `YYYY-MM-DD` y convertir con `dayRange(business.timezone, from, to)`.
 - Dinero/cantidades: enteros (ver `../CLAUDE.md`). Usa `common/utils/money.ts`, no hagas cuentas sueltas.
 - Borrado de catálogos = lógico (`active: false`).
 - Mensajes al usuario en español.

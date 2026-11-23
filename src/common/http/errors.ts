@@ -25,3 +25,7 @@ export const notFound = (message = 'Recurso no encontrado') =>
 
 export const conflict = (message: string, details?: unknown) =>
   new AppError(409, 'CONFLICT', message, details);
+
+/** Conflicto atribuible a un campo (el frontend lo pinta junto al input). */
+export const fieldConflict = (field: string, message: string) =>
+  new AppError(409, 'CONFLICT', message, { fieldErrors: { [field]: [message] } });
