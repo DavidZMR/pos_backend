@@ -67,6 +67,8 @@ saleSchema.index({ businessId: 1, folio: 1 }, { unique: true });
 saleSchema.index({ businessId: 1, createdAt: -1 });
 saleSchema.index({ businessId: 1, cashSessionId: 1 });
 saleSchema.index({ businessId: 1, cashierId: 1, createdAt: -1 });
+// Reportes del superadmin sobre todos los negocios (sin businessId en el filtro).
+saleSchema.index({ status: 1, createdAt: -1 });
 
 export type SaleData = InferSchemaType<typeof saleSchema>;
 export type SaleDocument = HydratedDocument<SaleData>;

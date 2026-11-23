@@ -8,15 +8,16 @@ Node 24 · Express 5 · TypeScript 7 (ESM, `module: NodeNext`) · Mongoose 9 · 
 
 ## Comandos
 
-| Comando                           | Qué hace                                                                                                                              |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `npm run dev`                     | Servidor con recarga (`tsx watch`), lee `.env`                                                                                        |
-| `npm run dev:memory -- --seed`    | Servidor SIN Atlas: replica set en memoria + marisquería demo (demo.root / demo.admin / demo.caja, clave `Demo12345`). Datos efímeros |
-| `npm test`                        | Pruebas (Vitest)                                                                                                                      |
-| `npm run typecheck`               | `tsc --noEmit`                                                                                                                        |
-| `npm run lint` / `npm run format` | Biome                                                                                                                                 |
-| `npm run build`                   | Compila a `dist/` (lo empaqueta Electron)                                                                                             |
-| `npm start`                       | Ejecuta `dist/server.js`                                                                                                              |
+| Comando                           | Qué hace                                                                                                                                                                                                                                        |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run dev`                     | Servidor con recarga (`tsx watch`), lee `.env`                                                                                                                                                                                                  |
+| `npm run dev:memory -- --seed`    | Servidor SIN Atlas: replica set en memoria + marisquería demo (demo.root / demo.admin / demo.caja, clave `Demo12345`). Datos efímeros                                                                                                           |
+| `npm run dev:memory -- --history` | Lo anterior + ~14 meses de historial ficticio (ventas, compras, cortes, cambios de precio, cancelaciones) para reportes; cajeros demo.caja2/demo.caja3 y negocio Abarrotes La Esquina (demo.esquina). `--months=N`. Reproducible (semilla fija) |
+| `npm test`                        | Pruebas (Vitest)                                                                                                                                                                                                                                |
+| `npm run typecheck`               | `tsc --noEmit`                                                                                                                                                                                                                                  |
+| `npm run lint` / `npm run format` | Biome                                                                                                                                                                                                                                           |
+| `npm run build`                   | Compila a `dist/` (lo empaqueta Electron)                                                                                                                                                                                                       |
+| `npm start`                       | Ejecuta `dist/server.js`                                                                                                                                                                                                                        |
 
 ## Estructura
 
@@ -50,6 +51,10 @@ src/
     sales/             ventas: precio/costo/IVA congelados por renglón, pagos informativos,
                        409 PRICE_CHANGED si el total visto no coincide; cancelar = admin
     pos/               GET /pos/catalog: catálogo ligero para la caja (todos los roles)
+    reports/           GET /reports/{summary,sales-series,top-products,categories,payments,purchases}
+                       (admin: su negocio; superadmin: x-business-id o TODOS) y /reports/businesses
+                       (comparativa, superadmin). Solo snapshots de venta/compra; periodos con
+                       $dateTrunc en la zona del negocio (semana desde lunes), huecos en cero
     <entidad>/
       <entidad>.model.ts      esquema Mongoose (businessId + índices compuestos)
       <entidad>.schemas.ts    Zod de entrada (create/update/list query)
@@ -58,7 +63,8 @@ src/
       <entidad>.routes.ts     authenticate → authorize(roles) → resolveTenant() → handlers
       <entidad>.test.ts       integración con Supertest
   scripts/seed-superadmin.ts  crea el primer superadmin
-  dev/                 solo desarrollo (excluido del build): dev-memory, demo-seed, local-mongod
+  dev/                 solo desarrollo (excluido del build): dev-memory, demo-seed, local-mongod,
+                       history/ (simulador puro del historial + history-seed; probado en simulate.test.ts)
   test/                global-setup (ReplSet en memoria), db.ts (useTestDatabase), factories.ts
 ```
 

@@ -13,6 +13,7 @@ import { inventoryRouter } from './modules/inventory/inventory.routes.js';
 import { posRouter } from './modules/pos/pos.routes.js';
 import { productRouter } from './modules/products/product.routes.js';
 import { purchaseRouter } from './modules/purchases/purchase.routes.js';
+import { reportRouter } from './modules/reports/reports.routes.js';
 import { saleRouter } from './modules/sales/sale.routes.js';
 import { supplierRouter } from './modules/suppliers/supplier.routes.js';
 import { userRouter } from './modules/users/user.routes.js';
@@ -53,6 +54,7 @@ export function createApp({ corsOrigins, requestLogging = true }: AppOptions) {
   v1.use('/pos', posRouter);
   v1.use('/cash-sessions', cashSessionRouter);
   v1.use('/sales', saleRouter);
+  v1.use('/reports', reportRouter);
   app.use('/api/v1', v1);
 
   app.use(notFoundHandler);
