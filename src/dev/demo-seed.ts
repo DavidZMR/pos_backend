@@ -57,13 +57,8 @@ export async function seedDemo(): Promise<void> {
     passwordHash,
     role: 'superadmin',
   });
-  const faro = await Business.create({
-    name: 'Mariscos El Faro',
-    legalName: 'Mariscos El Faro S.A. de C.V.',
-    taxId: 'MEF010101AB1',
-    phone: '322 555 0101',
-    address: 'Malecón 120, Puerto Vallarta, Jal.',
-  });
+  // Solo el nombre: razón social, RFC y dirección reales se capturan en Equipo → Datos del ticket.
+  const atlantico = await Business.create({ name: 'El Atlántico' });
   await Business.create({ name: 'Abarrotes La Esquina', phone: '33 1234 5678' });
 
   const admin = await User.create({
@@ -71,32 +66,36 @@ export async function seedDemo(): Promise<void> {
     username: 'demo.admin',
     passwordHash,
     role: 'admin',
-    businessId: faro._id,
+    businessId: atlantico._id,
   });
   await User.create({
     name: 'Carlos Méndez',
     username: 'demo.caja',
     passwordHash,
     role: 'employee',
-    businessId: faro._id,
+    businessId: atlantico._id,
   });
 
   const categoryNames = [...new Set(PRODUCTS.map((p) => p[2]))];
   const categories = await Category.insertMany(
-    categoryNames.map((name) => ({ businessId: faro._id, name, searchName: name.toLowerCase() })),
+    categoryNames.map((name) => ({
+      businessId: atlantico._id,
+      name,
+      searchName: name.toLowerCase(),
+    })),
   );
   const categoryId = (name: string) => categories.find((c) => c.name === name)?.id as string;
 
   await Supplier.insertMany([
     {
-      businessId: faro._id,
+      businessId: atlantico._id,
       name: 'Pescadería del Puerto',
       searchName: 'pescaderia del puerto',
       contactName: 'Don Memo',
       phone: '322 111 2233',
     },
     {
-      businessId: faro._id,
+      businessId: atlantico._id,
       name: 'Distribuidora Bahía',
       searchName: 'distribuidora bahia',
       contactName: 'Lupita',
@@ -118,7 +117,7 @@ export async function seedDemo(): Promise<void> {
     taxRateBp,
     barcode,
   ] of PRODUCTS) {
-    await createProduct(faro.id as string, actor, {
+    await createProduct(atlantico.id as string, actor, {
       code,
       name,
       unit,
