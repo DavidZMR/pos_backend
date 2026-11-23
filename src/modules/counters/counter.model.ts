@@ -16,6 +16,17 @@ export const Counter = model('Counter', counterSchema);
 
 export type CounterKey = 'purchase' | 'sale' | 'cash-session';
 
+export const FOLIO_PREFIX: Record<CounterKey, string> = {
+  purchase: 'E',
+  sale: 'V',
+  'cash-session': 'C',
+};
+
+/** 12 → "E-000012" */
+export function formatFolio(key: CounterKey, folio: number): string {
+  return `${FOLIO_PREFIX[key]}-${String(folio).padStart(6, '0')}`;
+}
+
 /** Siguiente folio (1, 2, 3…). Dentro de la transacción del documento que lo usa. */
 export async function nextSequence(
   businessId: string,
