@@ -44,7 +44,12 @@ src/
     categories/, suppliers/  catálogos simples (handlers directamente en *.routes.ts)
     products/          productos (código corto único, barcode opcional único), price-history
     inventory/         movement.model: kárdex + applyStockChange() (ÚNICO camino para tocar stock)
-    counters/          nextSequence(businessId, key, session): folios consecutivos
+    counters/          nextSequence(businessId, key, session): folios consecutivos (E-, V-, C-)
+    purchases/         entradas de mercancía (costo promedio, cambio de precio, cancelación)
+    cash-sessions/     turnos de caja: abrir, entradas/salidas de efectivo, corte (summarize())
+    sales/             ventas: precio/costo/IVA congelados por renglón, pagos informativos,
+                       409 PRICE_CHANGED si el total visto no coincide; cancelar = admin
+    pos/               GET /pos/catalog: catálogo ligero para la caja (todos los roles)
     <entidad>/
       <entidad>.model.ts      esquema Mongoose (businessId + índices compuestos)
       <entidad>.schemas.ts    Zod de entrada (create/update/list query)
