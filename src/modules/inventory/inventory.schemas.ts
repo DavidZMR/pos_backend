@@ -1,8 +1,7 @@
 import { z } from 'zod';
 import { paginationQuerySchema } from '../../common/utils/pagination.js';
-import { objectIdSchema, optionalText } from '../../common/validation.js';
+import { calendarDateSchema, objectIdSchema, optionalText } from '../../common/validation.js';
 import { qtyBaseSchema } from '../products/product.schemas.js';
-import { calendarDateSchema } from '../purchases/purchase.schemas.js';
 import { ADJUSTMENT_REASONS, MOVEMENT_TYPES } from './movement.model.js';
 
 /**

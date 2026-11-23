@@ -1,9 +1,8 @@
 import { z } from 'zod';
 import { paginationQuerySchema } from '../../common/utils/pagination.js';
-import { objectIdSchema } from '../../common/validation.js';
+import { calendarDateSchema, objectIdSchema } from '../../common/validation.js';
 import { PAYMENT_METHODS } from '../cash-sessions/cash-session.model.js';
 import { centsSchema } from '../products/product.schemas.js';
-import { calendarDateSchema } from '../purchases/purchase.schemas.js';
 
 export const createSaleSchema = z
   .object({
