@@ -23,19 +23,30 @@ Node 24 · Express 5 · TypeScript 7 (ESM, `module: NodeNext`) · Mongoose 9 · 
 src/
   server.ts            arranque: env, listen, conexión a BD, apagado limpio
   app.ts               createApp(): middlewares, routers, manejo de errores (sin listen → testeable)
-  config/env.ts        variables de entorno validadas con Zod (loadEnv)
+  config/env.ts        esquema Zod del entorno (loadEnv); config/index.ts exporta `env` ya validado
   db/connection.ts     conexión con reintentos, databaseState()
+  db/schema-options.ts jsonOptions: toJSON con `id`, sin `_id`/`__v`/searchName/passwordHash
+  types/express.d.ts   req.user (AuthUser) y req.businessId
   common/
     http/              response.ts (sendOk/sendCreated/sendError), errors.ts (AppError y helpers)
-    middleware/        error-handler, auth, authorize(roles), tenant, validate(zod)
-    utils/             money.ts, qty.ts, normalize.ts, pagination.ts, dates.ts
-  modules/<modulo>/
-    <modulo>.model.ts      esquema Mongoose (siempre businessId + índices)
-    <modulo>.schemas.ts    DTOs Zod de entrada (create/update/query)
-    <modulo>.service.ts    lógica de negocio; recibe businessId explícito
-    <modulo>.controller.ts adapta req/res → service
-    <modulo>.routes.ts     Router con auth/authorize/validate
-    <modulo>.test.ts       pruebas de integración
+    middleware/        error-handler (+ notFoundHandler)
+    utils/             decimal, money, qty, text (normalizeText/containsRegex), pagination, flatten
+    validation.ts      objectIdSchema, idParamsSchema, optionalText
+  modules/
+    auth/              login/me/change-password, token (JWT), password (bcrypt),
+                       auth.middleware (authenticate, authorize, requireUser),
+                       tenant.middleware (resolveTenant, requireBusinessId, BUSINESS_HEADER)
+    businesses/        CRUD superadmin + /current (negocio propio)
+    users/             CRUD con reglas por rol
+    <entidad>/
+      <entidad>.model.ts      esquema Mongoose (businessId + índices compuestos)
+      <entidad>.schemas.ts    Zod de entrada (create/update/list query)
+      <entidad>.service.ts    lógica; recibe actor/businessId explícitos
+      <entidad>.controller.ts parsea con Zod (`schema.parse(req.body)`) y llama al service
+      <entidad>.routes.ts     authenticate → authorize(roles) → resolveTenant() → controller
+      <entidad>.test.ts       integración con Supertest
+  scripts/seed-superadmin.ts  crea el primer superadmin
+  test/                global-setup (ReplSet en memoria), db.ts (useTestDatabase), factories.ts
 ```
 
 ## Convenciones
@@ -45,7 +56,10 @@ src/
 - Respuestas: siempre `sendOk`/`sendCreated`/`sendError` → sobre `{ ok, data, message?, meta? }` o `{ ok:false, error:{ code, message, details? } }` con **status HTTP real**.
 - Errores: lanza `AppError` (o `badRequest`, `notFound`, `forbidden`, `conflict`); el `errorHandler` traduce Zod, CastError, duplicados (11000) y JSON inválido.
 - Rutas bajo `/api/v1/...`; salud en `GET /api/health` (siempre 200 si el proceso vive, con `db` = estado de Mongo).
-- Multi-tenant: todo query de negocio incluye `businessId` tomado de `req.businessId` (lo pone el middleware `tenant`), jamás del body.
+- Validación: el controller hace `schema.parse(req.body|req.query|req.params)`; un `ZodError` se vuelve 400 `VALIDATION_ERROR` con `details.fieldErrors`. Express 5 propaga errores de handlers async (no hace falta try/catch).
+- Multi-tenant: todo query de negocio incluye `businessId` tomado de `requireBusinessId(req)` (lo pone `resolveTenant()`), jamás del body. Admin/empleado: siempre su negocio. Superadmin: encabezado `x-business-id`.
+- Recursos de otro negocio responden **404** (no se revela que existen); acciones no permitidas por rol, **403**.
+- Hooks de Mongoose 9: tipa `this` explícitamente (`function (this: XDocument) {…}`).
 - Operaciones que tocan varias colecciones (venta, compra, cancelaciones) usan **transacción** (`session.withTransaction`).
 - Dinero/cantidades: enteros (ver `../CLAUDE.md`). Usa `common/utils/money.ts`, no hagas cuentas sueltas.
 - Borrado de catálogos = lógico (`active: false`).
@@ -60,5 +74,11 @@ src/
 
 ## Pruebas
 
-- Unitarias junto al archivo (`*.test.ts`). Integración con `mongodb-memory-server` en modo **ReplSet** (las transacciones lo requieren).
-- Cada módulo con permisos debe probar: rol correcto ✔, rol incorrecto → 403, otro negocio → 404/403 (aislamiento).
+- Unitarias junto al archivo (`*.test.ts`). Integración con `mongodb-memory-server` en modo **ReplSet** (las transacciones lo requieren), levantado una vez en `src/test/global-setup.ts`.
+- Binario de Mongo: usa `MONGOMS_SYSTEM_BINARY` o el `mongod` instalado en `C:\Program Files\MongoDB\Server\<versión>` (evita la descarga de ~600 MB). Instalar dependencias con `MONGOMS_DISABLE_POSTINSTALL=1`.
+- En cada archivo de integración: `useTestDatabase()` (BD propia, índices creados, colecciones limpias por prueba) y `testApp()`, `seedTwoBusinesses()`, `bearer(user)` de `test/factories.ts`.
+- Cada módulo con permisos debe probar: rol correcto ✔, rol incorrecto → 403, otro negocio → 404 (aislamiento), validación → 400, duplicado → 409.
+
+## Primer arranque
+
+`npm run seed:superadmin -- --username <usuario> --password <contraseña> --name "<Nombre>"` crea el superadmin en la BD del `.env`.
