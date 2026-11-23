@@ -1,22 +1,6 @@
-import { existsSync, readdirSync } from 'node:fs';
-import { join } from 'node:path';
 import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import type { TestProject } from 'vitest/node';
-
-/**
- * Usa el mongod instalado en la máquina si existe (evita descargar ~600 MB).
- * Orden: MONGOMS_SYSTEM_BINARY → C:\Program Files\MongoDB\Server\<mayor versión>\bin\mongod.exe → descarga.
- */
-function findLocalMongod(): string | undefined {
-  if (process.env.MONGOMS_SYSTEM_BINARY) return process.env.MONGOMS_SYSTEM_BINARY;
-  const root = 'C:\\Program Files\\MongoDB\\Server';
-  if (process.platform !== 'win32' || !existsSync(root)) return undefined;
-
-  const versions = readdirSync(root).sort((a, b) =>
-    b.localeCompare(a, undefined, { numeric: true }),
-  );
-  return versions.map((v) => join(root, v, 'bin', 'mongod.exe')).find((path) => existsSync(path));
-}
+import { findLocalMongod } from '../dev/local-mongod.js';
 
 let replSet: MongoMemoryReplSet | undefined;
 

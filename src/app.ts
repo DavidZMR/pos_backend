@@ -6,7 +6,10 @@ import { logger } from './common/logger.js';
 import { errorHandler, notFoundHandler } from './common/middleware/error-handler.js';
 import { authRouter } from './modules/auth/auth.routes.js';
 import { businessRouter } from './modules/businesses/business.routes.js';
+import { categoryRouter } from './modules/categories/category.routes.js';
 import { healthRouter } from './modules/health/health.routes.js';
+import { productRouter } from './modules/products/product.routes.js';
+import { supplierRouter } from './modules/suppliers/supplier.routes.js';
 import { userRouter } from './modules/users/user.routes.js';
 
 export interface AppOptions {
@@ -37,6 +40,9 @@ export function createApp({ corsOrigins, requestLogging = true }: AppOptions) {
   v1.use('/auth', authRouter);
   v1.use('/businesses', businessRouter);
   v1.use('/users', userRouter);
+  v1.use('/categories', categoryRouter);
+  v1.use('/suppliers', supplierRouter);
+  v1.use('/products', productRouter);
   app.use('/api/v1', v1);
 
   app.use(notFoundHandler);
