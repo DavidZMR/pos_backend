@@ -4,7 +4,10 @@ import helmet from 'helmet';
 import { pinoHttp } from 'pino-http';
 import { logger } from './common/logger.js';
 import { errorHandler, notFoundHandler } from './common/middleware/error-handler.js';
+import { authRouter } from './modules/auth/auth.routes.js';
+import { businessRouter } from './modules/businesses/business.routes.js';
 import { healthRouter } from './modules/health/health.routes.js';
+import { userRouter } from './modules/users/user.routes.js';
 
 export interface AppOptions {
   corsOrigins: string[];
@@ -31,7 +34,9 @@ export function createApp({ corsOrigins, requestLogging = true }: AppOptions) {
   app.use('/api', healthRouter);
 
   const v1 = Router();
-  // Los módulos se montan aquí: v1.use('/auth', authRouter), etc.
+  v1.use('/auth', authRouter);
+  v1.use('/businesses', businessRouter);
+  v1.use('/users', userRouter);
   app.use('/api/v1', v1);
 
   app.use(notFoundHandler);
