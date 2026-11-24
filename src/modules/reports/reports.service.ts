@@ -354,14 +354,94 @@ export async function byCategory(scope: ReportScope, q: ReportQuery) {
 }
 
 /**
- * Formas de pago, cajeros y horas pico. Trabaja con tickets completos, por eso ignora los
- * filtros de categoría/producto (un ticket mezcla productos).
+ * Formas de pago, cajeros y horas pico. Con filtro de categoría o producto cuenta SOLO el importe
+ * de los renglones que coinciden (asignado a la forma de pago, cajero y hora de su ticket), así
+ * que la suma de formas de pago es igual a las ventas del resumen con los mismos filtros.
  */
 export async function payments(scope: ReportScope, q: ReportQuery) {
-  const match = saleMatch(scope, { cashierId: q.cashierId, method: q.method }, q.from, q.to);
+  const match = saleMatch(scope, q, q.from, q.to);
+  const filter = lineFilter(q, 'items.');
+  // Por ticket: importe que cuenta (los renglones filtrados, o el ticket completo).
+  const perSale: PipelineStage[] = Object.keys(filter).length
+    ? [
+        { $match: match },
+        { $unwind: '$items' },
+        { $match: filter },
+        {
+          $group: {
+            _id: '$_id',
+            matched: { $sum: '$items.lineTotalCents' },
+            total: { $first: '$totalCents' },
+            payments: { $first: '$payments' },
+            cashierId: { $first: '$cashierId' },
+            cashierName: { $first: '$cashierName' },
+            createdAt: { $first: '$createdAt' },
+          },
+        },
+      ]
+    : [{ $match: match }, { $addFields: { matched: '$totalCents', total: '$totalCents' } }];
+
   const [methods, cashiers, hours] = await Promise.all([
     Sale.aggregate<{ _id: PaymentMethod; amount: number; tickets: number }>([
-      { $match: match },
+      ...perSale,
+      // Reparte el importe del ticket entre sus pagos con redondeo ACUMULADO: cada pago recibe
+      // round(importe·acumulado/total) − lo ya repartido, así la suma da exacto el importe (un solo
+      // pago = su importe completo).
+      {
+        $set: {
+          payments: {
+            $getField: {
+              field: 'out',
+              input: {
+                $reduce: {
+                  input: '$payments',
+                  initialValue: { cum: 0, given: 0, out: [] },
+                  in: {
+                    $let: {
+                      vars: { cum: { $add: ['$$value.cum', '$$this.amountCents'] } },
+                      in: {
+                        $let: {
+                          vars: {
+                            upTo: {
+                              $cond: [
+                                { $gt: ['$total', 0] },
+                                {
+                                  $floor: {
+                                    $add: [
+                                      { $divide: [{ $multiply: ['$matched', '$$cum'] }, '$total'] },
+                                      0.5,
+                                    ],
+                                  },
+                                },
+                                0,
+                              ],
+                            },
+                          },
+                          in: {
+                            cum: '$$cum',
+                            given: '$$upTo',
+                            out: {
+                              $concatArrays: [
+                                '$$value.out',
+                                [
+                                  {
+                                    method: '$$this.method',
+                                    amountCents: { $subtract: ['$$upTo', '$$value.given'] },
+                                  },
+                                ],
+                              ],
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
       { $unwind: '$payments' },
       ...(q.method ? [{ $match: { 'payments.method': q.method } }] : []),
       {
@@ -373,27 +453,27 @@ export async function payments(scope: ReportScope, q: ReportQuery) {
       },
     ]),
     Sale.aggregate<{ _id: Types.ObjectId; name: string; sales: number; tickets: number }>([
-      { $match: match },
+      ...perSale,
       { $sort: { createdAt: 1 } },
       {
         $group: {
           _id: '$cashierId',
           name: { $last: '$cashierName' },
-          sales: { $sum: '$totalCents' },
+          sales: { $sum: '$matched' },
           tickets: { $sum: 1 },
         },
       },
       { $sort: { sales: -1, _id: 1 } },
     ]),
     Sale.aggregate<{ _id: { weekday: number; hour: number }; sales: number; tickets: number }>([
-      { $match: match },
+      ...perSale,
       {
         $group: {
           _id: {
             weekday: { $isoDayOfWeek: { date: '$createdAt', timezone: scope.timezone } },
             hour: { $hour: { date: '$createdAt', timezone: scope.timezone } },
           },
-          sales: { $sum: '$totalCents' },
+          sales: { $sum: '$matched' },
           tickets: { $sum: 1 },
         },
       },
@@ -430,16 +510,25 @@ export async function payments(scope: ReportScope, q: ReportQuery) {
   };
 }
 
-/** Compras (entradas de mercancía) por periodo, proveedor y producto. */
+/**
+ * Compras (entradas de mercancía) por periodo, proveedor y producto. Con producto o categoría
+ * cuenta solo esos renglones (el producto manda sobre la categoría, igual que en el resumen).
+ */
 export async function purchasesReport(scope: ReportScope, q: PurchasesReportQuery) {
   const granularity = q.granularity ?? autoGranularity(q.from, q.to);
   const match: Record<string, unknown> = purchaseMatch(scope, q.from, q.to);
   if (q.supplierId) match.supplierId = oid(q.supplierId);
-  if (q.productId) match['items.productId'] = oid(q.productId);
-  const productStage: PipelineStage[] = q.productId
-    ? [{ $unwind: '$items' }, { $match: { 'items.productId': oid(q.productId) } }]
+  const productIds = q.productId
+    ? [oid(q.productId)]
+    : q.categoryId
+      ? await productIdsOf(scope, q.categoryId)
+      : null;
+  const itemMatch = productIds && { 'items.productId': { $in: productIds } };
+  if (itemMatch) Object.assign(match, itemMatch);
+  const productStage: PipelineStage[] = itemMatch
+    ? [{ $unwind: '$items' }, { $match: itemMatch }]
     : [];
-  const amount = q.productId ? '$items.lineTotalCents' : '$totalCents';
+  const amount = itemMatch ? '$items.lineTotalCents' : '$totalCents';
 
   const [series, suppliers, products] = await Promise.all([
     Purchase.aggregate<{ _id: string; total: number; ids: Types.ObjectId[] }>([
@@ -483,7 +572,7 @@ export async function purchasesReport(scope: ReportScope, q: PurchasesReportQuer
       { $match: match },
       { $sort: { purchasedAt: 1 } },
       { $unwind: '$items' },
-      ...(q.productId ? [{ $match: { 'items.productId': oid(q.productId) } }] : []),
+      ...(itemMatch ? [{ $match: itemMatch }] : []),
       {
         $group: {
           _id: '$items.productId',

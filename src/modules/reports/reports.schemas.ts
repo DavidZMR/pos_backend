@@ -56,6 +56,7 @@ export const purchasesReportQuerySchema = withRangeChecks(
     to: calendarDateSchema,
     granularity: z.enum(GRANULARITIES, { error: 'Agrupación inválida' }).optional(),
     supplierId: objectIdSchema.optional(),
+    categoryId: objectIdSchema.optional(),
     productId: objectIdSchema.optional(),
   }),
 );

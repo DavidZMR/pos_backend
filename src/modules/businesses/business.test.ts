@@ -44,6 +44,33 @@ describe('administración de negocios (superadmin)', () => {
     expect(removed.body.data.active).toBe(false);
   });
 
+  it('valida el RFC (moral de 12, física de 13; vacío = sin RFC)', async () => {
+    const auth = bearer(await createUser({ role: 'superadmin' }));
+    for (const taxId of ['ABC123', 'ABC0101011XYZ9', '1BC010101XYZ', 'ABC01010']) {
+      const res = await request(app)
+        .post('/api/v1/businesses')
+        .set(auth)
+        .send({ name: 'Con RFC', taxId });
+      expect(res.status, taxId).toBe(400);
+      expect(res.body.error.details.fieldErrors.taxId[0], taxId).toMatch(/RFC inválido/);
+    }
+    for (const taxId of ['GODE561231GR8', 'XAXX010101000', '']) {
+      const res = await request(app)
+        .post('/api/v1/businesses')
+        .set(auth)
+        .send({ name: 'Con RFC', taxId });
+      expect(res.status, taxId).toBe(201);
+    }
+  });
+
+  it('los errores de validación sin mensaje propio también salen en español', async () => {
+    const auth = bearer(await createUser({ role: 'superadmin' }));
+    const res = await request(app).get('/api/v1/businesses?page=0&limit=500').set(auth);
+    expect(res.status).toBe(400);
+    expect(res.body.error.details.fieldErrors.page[0]).toMatch(/^Demasiado pequeño/);
+    expect(res.body.error.details.fieldErrors.limit[0]).toMatch(/^Demasiado grande/);
+  });
+
   it('permite borrar un campo opcional enviando texto vacío', async () => {
     const auth = bearer(await createUser({ role: 'superadmin' }));
     const created = await request(app)

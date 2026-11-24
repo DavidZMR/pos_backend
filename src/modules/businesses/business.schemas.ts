@@ -11,17 +11,28 @@ const timezoneSchema = z.string().refine((tz) => {
   }
 }, 'Zona horaria inválida');
 
+/** RFC: 3 letras (persona moral) o 4 (física) + fecha AAMMDD + homoclave de 3. Vacío = sin RFC. */
+const RFC = /^[A-ZÑ&]{3,4}\d{6}[A-Z\d]{3}$/i;
+const taxIdSchema = optionalText(20).refine(
+  (value) => !value || RFC.test(value),
+  'RFC inválido (12 o 13 caracteres, p. ej. ABC010101XY1)',
+);
+
 const businessFields = {
-  name: z.string().trim().min(2, 'El nombre debe tener al menos 2 caracteres').max(120),
+  name: z
+    .string()
+    .trim()
+    .min(2, 'El nombre debe tener al menos 2 caracteres')
+    .max(120, 'Máximo 120 caracteres'),
   legalName: optionalText(160),
-  taxId: optionalText(20),
+  taxId: taxIdSchema,
   phone: optionalText(30),
   address: optionalText(250),
   timezone: timezoneSchema.optional(),
   ticket: z
     .object({
-      header: z.string().max(500).optional(),
-      footer: z.string().max(500).optional(),
+      header: z.string().max(500, 'Máximo 500 caracteres').optional(),
+      footer: z.string().max(500, 'Máximo 500 caracteres').optional(),
     })
     .optional(),
   settings: z

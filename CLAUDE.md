@@ -86,7 +86,7 @@ src/
 - Filtros por fecha: recibir `YYYY-MM-DD` y convertir con `dayRange(business.timezone, from, to)`.
 - Dinero/cantidades: enteros (ver `../CLAUDE.md`). Usa `common/utils/money.ts`, no hagas cuentas sueltas.
 - Borrado de catálogos = lógico (`active: false`).
-- Mensajes al usuario en español.
+- Mensajes al usuario en español. Zod usa su traducción al español para todo el API (`common/zod-locale.ts`, importado en `app.ts`); pon mensaje propio cuando el genérico no ayude.
 
 ## Entorno
 
