@@ -32,13 +32,18 @@ export function timezoneOffsetMinutes(timeZone: string, instant: Date): number {
 
 /** Instante UTC en que empieza el día `YYYY-MM-DD` en la zona del negocio. */
 export function startOfDayInZone(date: string, timeZone: string): Date {
+  return instantInZone(date, 0, timeZone);
+}
+
+/** Instante UTC de la hora local `minutes` (minutos desde la medianoche) del día `date`. */
+export function instantInZone(date: string, minutes: number, timeZone: string): Date {
   const match = DATE_RE.exec(date);
   if (!match) throw new RangeError(`Fecha inválida: ${date}`);
-  const localMidnightAsUtc = Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  const localAsUtc =
+    Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])) + minutes * 60_000;
   // Primera aproximación con el desfase de ese día y corrección por si cruza un cambio de horario.
-  let instant =
-    localMidnightAsUtc - timezoneOffsetMinutes(timeZone, new Date(localMidnightAsUtc)) * 60_000;
-  instant = localMidnightAsUtc - timezoneOffsetMinutes(timeZone, new Date(instant)) * 60_000;
+  let instant = localAsUtc - timezoneOffsetMinutes(timeZone, new Date(localAsUtc)) * 60_000;
+  instant = localAsUtc - timezoneOffsetMinutes(timeZone, new Date(instant)) * 60_000;
   return new Date(instant);
 }
 

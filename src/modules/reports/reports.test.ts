@@ -289,6 +289,60 @@ describe('reportes: cálculos con fechas exactas', () => {
     expect(res.body.data.previous).toMatchObject({ from: '2026-01-29', to: '2026-02-28' });
   });
 
+  it('resumen "a esta hora" (until) y con periodo de comparación propio', async () => {
+    const s = await scenario();
+    const auth = bearer(s.adminA);
+    // Lunes 2: camarón a las 10:00 local (38900), cerveza a las 11:00 (19200); compra a las 8:00.
+    const at1030 = (
+      await get(auth, 'summary', { from: '2026-03-02', to: '2026-03-02', until: '10:30' })
+    ).body.data;
+    expect(at1030.until).toBe('10:30');
+    expect(at1030.totals).toMatchObject({ salesCents: 38900, tickets: 1, purchasesCents: 290000 });
+    const at0700 = (
+      await get(auth, 'summary', { from: '2026-03-02', to: '2026-03-02', until: '07:00' })
+    ).body.data.totals;
+    expect(at0700).toMatchObject({ salesCents: 0, purchasesCents: 0 });
+
+    // Domingo 8 hasta las 23:00 (sin la venta de las 23:30) contra el lunes 2 hasta las 23:00.
+    const compared = (
+      await get(auth, 'summary', {
+        from: '2026-03-08',
+        to: '2026-03-08',
+        until: '23:00',
+        compareFrom: '2026-03-02',
+        compareTo: '2026-03-02',
+      })
+    ).body.data;
+    expect(compared.totals.salesCents).toBe(25850);
+    expect(compared.previous).toMatchObject({ from: '2026-03-02', to: '2026-03-02' });
+    expect(compared.previous.totals.salesCents).toBe(38900 + 19200);
+
+    // Mes contra los mismos días del mes anterior (sin until: días completos).
+    const month = (
+      await get(auth, 'summary', {
+        from: '2026-03-01',
+        to: '2026-03-08',
+        compareFrom: '2026-02-01',
+        compareTo: '2026-02-08',
+      })
+    ).body.data;
+    expect(month.totals.salesCents).toBe(38900 + 19200 + 25850 + 3200);
+    expect(month.previous.from).toBe('2026-02-01');
+    expect(month.until).toBeNull();
+
+    const invalid: Record<string, string>[] = [
+      { until: '24:00' },
+      { until: '9:30' },
+      { compareFrom: '2026-02-01' },
+      { compareFrom: '2026-02-08', compareTo: '2026-02-01' },
+      { compareFrom: '2026-02-30', compareTo: '2026-03-01' },
+    ];
+    for (const bad of invalid) {
+      const res = await get(auth, 'summary', { ...MARCH, ...bad });
+      expect(res.status, JSON.stringify(bad)).toBe(400);
+    }
+  });
+
   it('zona horaria: 23:30 local cuenta en su día, no en el siguiente (UTC)', async () => {
     const s = await scenario();
     const day8 = (await get(bearer(s.adminA), 'summary', { from: '2026-03-08', to: '2026-03-08' }))
