@@ -35,6 +35,34 @@ function withRangeChecks<T extends z.ZodType<{ from: string; to: string }>>(sche
 
 export const reportQuerySchema = withRangeChecks(z.object(rangeFields));
 
+const TIME_OF_DAY = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+/**
+ * Resumen: además de los filtros, `until` (HH:MM) corta el ÚLTIMO día de ambos rangos a esa
+ * hora local ("hoy vs. ayer a esta hora") y `compareFrom`/`compareTo` fijan el periodo con
+ * el que se compara (si no, el anterior del mismo largo).
+ */
+export const summaryQuerySchema = withRangeChecks(
+  z.object({
+    ...rangeFields,
+    until: z.string().regex(TIME_OF_DAY, 'Hora inválida (HH:MM)').optional(),
+    compareFrom: calendarDateSchema.optional(),
+    compareTo: calendarDateSchema.optional(),
+  }),
+)
+  .refine((q) => !q.compareFrom === !q.compareTo, {
+    message: 'Indica las dos fechas del periodo de comparación',
+    path: ['compareTo'],
+  })
+  .refine(
+    (q) =>
+      !q.compareFrom ||
+      !q.compareTo ||
+      !bothValid({ from: q.compareFrom, to: q.compareTo }) ||
+      (q.compareFrom <= q.compareTo && daysBetween(q.compareFrom, q.compareTo) <= MAX_DAYS),
+    { message: 'Periodo de comparación inválido', path: ['compareFrom'] },
+  );
+
 export const TOP_SORTS = ['amount', 'profit', 'qty', 'tickets'] as const;
 
 export const topProductsQuerySchema = withRangeChecks(
@@ -66,6 +94,7 @@ export const businessesReportQuerySchema = withRangeChecks(
 );
 
 export type ReportQuery = z.infer<typeof reportQuerySchema>;
+export type SummaryQuery = z.infer<typeof summaryQuerySchema>;
 export type TopProductsQuery = z.infer<typeof topProductsQuerySchema>;
 export type PurchasesReportQuery = z.infer<typeof purchasesReportQuerySchema>;
 export type BusinessesReportQuery = z.infer<typeof businessesReportQuerySchema>;

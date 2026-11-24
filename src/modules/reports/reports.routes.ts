@@ -6,6 +6,7 @@ import {
   businessesReportQuerySchema,
   purchasesReportQuerySchema,
   reportQuerySchema,
+  summaryQuerySchema,
   topProductsQuerySchema,
 } from './reports.schemas.js';
 import * as service from './reports.service.js';
@@ -23,7 +24,7 @@ reportRouter.use(
 );
 
 reportRouter.get('/summary', async (req, res) => {
-  const query = reportQuerySchema.parse(req.query);
+  const query = summaryQuerySchema.parse(req.query);
   sendOk(res, await service.summary(await service.resolveScope(req.businessId), query));
 });
 

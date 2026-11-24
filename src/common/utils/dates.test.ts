@@ -3,6 +3,7 @@ import {
   addDays,
   calendarDateInZone,
   dayRange,
+  instantInZone,
   startOfDayInZone,
   timezoneOffsetMinutes,
 } from './dates.js';
@@ -38,6 +39,19 @@ describe('fechas en la zona del negocio', () => {
       $lt: new Date('2026-11-04T06:00:00.000Z'),
     });
     expect(dayRange('America/Mexico_City')).toBeUndefined();
+  });
+
+  it('instantInZone: una hora local del día (también el día del cambio de horario)', () => {
+    expect(instantInZone('2026-03-02', 10 * 60 + 30, 'America/Mexico_City').toISOString()).toBe(
+      '2026-03-02T16:30:00.000Z',
+    );
+    // Tijuana pasa a horario de verano el 8 de marzo de 2026 a las 2:00: a las 10:00 ya es UTC-7.
+    expect(instantInZone('2026-03-08', 10 * 60, 'America/Tijuana').toISOString()).toBe(
+      '2026-03-08T17:00:00.000Z',
+    );
+    expect(instantInZone('2026-03-02', 0, 'America/Mexico_City')).toEqual(
+      startOfDayInZone('2026-03-02', 'America/Mexico_City'),
+    );
   });
 
   it('addDays cruza fin de mes', () => {

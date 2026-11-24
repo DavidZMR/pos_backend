@@ -5,7 +5,7 @@
  * aparte) y compras `active`. Los días se cortan en la zona horaria del negocio.
  */
 import { type PipelineStage, Types } from 'mongoose';
-import { dayRange } from '../../common/utils/dates.js';
+import { dayRange, instantInZone } from '../../common/utils/dates.js';
 import { type Unit, unitScale } from '../../common/utils/qty.js';
 import { Business, DEFAULT_TIMEZONE } from '../businesses/business.model.js';
 import { PAYMENT_METHODS, type PaymentMethod } from '../cash-sessions/cash-session.model.js';
@@ -18,6 +18,7 @@ import type {
   BusinessesReportQuery,
   PurchasesReportQuery,
   ReportQuery,
+  SummaryQuery,
   TopProductsQuery,
 } from './reports.schemas.js';
 
@@ -51,14 +52,32 @@ function lineFilter(q: LineFilters, prefix: '' | 'items.'): Record<string, unkno
   return filter;
 }
 
+/** Días [from, to] en la zona; con `until` (minutos) el último día termina a esa hora local. */
+function dateRange(timezone: string, from: string, to: string, until?: number) {
+  const range = dayRange(timezone, from, to) ?? {};
+  if (until !== undefined) range.$lt = instantInZone(to, until, timezone);
+  return range;
+}
+
+/** "18:30" → 1110 minutos desde la medianoche. */
+function minutesOf(time: string | undefined): number | undefined {
+  if (!time) return undefined;
+  const [hours = 0, minutes = 0] = time.split(':').map(Number);
+  return hours * 60 + minutes;
+}
+
 function saleMatch(
   scope: ReportScope,
   q: Partial<ReportQuery> & LineFilters,
   from: string,
   to: string,
   status: 'completed' | 'cancelled' = 'completed',
+  until?: number,
 ): Record<string, unknown> {
-  const match: Record<string, unknown> = { status, createdAt: dayRange(scope.timezone, from, to) };
+  const match: Record<string, unknown> = {
+    status,
+    createdAt: dateRange(scope.timezone, from, to, until),
+  };
   if (scope.businessId) match.businessId = scope.businessId;
   if (q.cashierId) match.cashierId = oid(q.cashierId);
   if (q.method) match['payments.method'] = q.method;
@@ -115,10 +134,11 @@ async function totals(
   q: ReportQuery,
   from: string,
   to: string,
+  until?: number,
 ): Promise<Totals> {
   const sum = (status: 'completed' | 'cancelled') =>
     Sale.aggregate<{ sales: number; cost: number; tax: number; lines: number; tickets: number }>([
-      { $match: saleMatch(scope, q, from, to, status) },
+      { $match: saleMatch(scope, q, from, to, status, until) },
       ...lineStages(q),
       {
         $group: {
@@ -134,7 +154,7 @@ async function totals(
   const [[done], [cancelled], purchasesCents] = await Promise.all([
     sum('completed'),
     sum('cancelled'),
-    purchasesTotal(scope, q, from, to),
+    purchasesTotal(scope, q, from, to, until),
   ]);
   const salesCents = done?.sales ?? 0;
   const costCents = done?.cost ?? 0;
@@ -167,6 +187,7 @@ async function purchasesTotal(
   q: Pick<ReportQuery, 'categoryId' | 'productId'>,
   from: string,
   to: string,
+  until?: number,
 ): Promise<number> {
   const productIds = q.productId
     ? [oid(q.productId)]
@@ -174,7 +195,7 @@ async function purchasesTotal(
       ? await productIdsOf(scope, q.categoryId)
       : null;
   const [row] = await Purchase.aggregate<{ total: number }>([
-    { $match: purchaseMatch(scope, from, to) },
+    { $match: purchaseMatch(scope, from, to, until) },
     ...(productIds
       ? [{ $unwind: '$items' }, { $match: { 'items.productId': { $in: productIds } } }]
       : []),
@@ -188,22 +209,40 @@ async function purchasesTotal(
   return row?.total ?? 0;
 }
 
-function purchaseMatch(scope: ReportScope, from: string, to: string): Record<string, unknown> {
+function purchaseMatch(
+  scope: ReportScope,
+  from: string,
+  to: string,
+  until?: number,
+): Record<string, unknown> {
   return {
     status: 'active',
-    purchasedAt: dayRange(scope.timezone, from, to),
+    purchasedAt: dateRange(scope.timezone, from, to, until),
     ...(scope.businessId && { businessId: scope.businessId }),
   };
 }
 
-/** KPIs del rango y del periodo anterior del mismo largo (para mostrar "↑ 12 %"). */
-export async function summary(scope: ReportScope, q: ReportQuery) {
-  const previous = previousRange(q.from, q.to);
+/**
+ * KPIs del rango y del periodo con que se compara (para mostrar "↑ 12 %"): el anterior del mismo
+ * largo, o `compareFrom`–`compareTo`. Con `until`, el último día de ambos termina a esa hora.
+ */
+export async function summary(scope: ReportScope, q: SummaryQuery) {
+  const previous =
+    q.compareFrom && q.compareTo
+      ? { from: q.compareFrom, to: q.compareTo }
+      : previousRange(q.from, q.to);
+  const until = minutesOf(q.until);
   const [current, before] = await Promise.all([
-    totals(scope, q, q.from, q.to),
-    totals(scope, q, previous.from, previous.to),
+    totals(scope, q, q.from, q.to, until),
+    totals(scope, q, previous.from, previous.to, until),
   ]);
-  return { from: q.from, to: q.to, previous: { ...previous, totals: before }, totals: current };
+  return {
+    from: q.from,
+    to: q.to,
+    until: q.until ?? null,
+    previous: { ...previous, totals: before },
+    totals: current,
+  };
 }
 
 /** Ventas, costo, ganancia y tickets por día/semana/mes/año, sin huecos. */

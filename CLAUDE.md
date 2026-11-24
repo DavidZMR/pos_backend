@@ -55,6 +55,8 @@ src/
                        (admin: su negocio; superadmin: x-business-id o TODOS) y /reports/businesses
                        (comparativa, superadmin). Solo snapshots de venta/compra; periodos con
                        $dateTrunc en la zona del negocio (semana desde lunes), huecos en cero
+                       summary acepta until=HH:MM (corta el último día de ambos rangos: "a esta
+                       hora") y compareFrom/compareTo (periodo de comparación; si no, el anterior)
     <entidad>/
       <entidad>.model.ts      esquema Mongoose (businessId + índices compuestos)
       <entidad>.schemas.ts    Zod de entrada (create/update/list query)
