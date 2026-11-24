@@ -3,6 +3,7 @@ import express, { Router } from 'express';
 import helmet from 'helmet';
 import { pinoHttp } from 'pino-http';
 import { logger } from './common/logger.js';
+import './common/zod-locale.js';
 import { errorHandler, notFoundHandler } from './common/middleware/error-handler.js';
 import { authRouter } from './modules/auth/auth.routes.js';
 import { businessRouter } from './modules/businesses/business.routes.js';

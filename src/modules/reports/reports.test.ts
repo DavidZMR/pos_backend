@@ -6,6 +6,7 @@ import { unitScale } from '../../common/utils/qty.js';
 import { useTestDatabase } from '../../test/db.js';
 import { bearer, seedTwoBusinesses, testApp } from '../../test/factories.js';
 import { Category } from '../categories/category.model.js';
+import { Product } from '../products/product.model.js';
 import { Purchase } from '../purchases/purchase.model.js';
 import { Sale } from '../sales/sale.model.js';
 
@@ -45,6 +46,8 @@ async function insertSale(
     status?: 'completed' | 'cancelled';
     cashier?: Types.ObjectId;
     cashierName?: string;
+    /** Pago dividido; por defecto un solo pago de `method` por el total. */
+    payments?: { method: string; amountCents: number }[];
   } = {},
 ) {
   const items = lines.map((l) => {
@@ -77,7 +80,7 @@ async function insertSale(
     totalCents: total,
     taxCents: items.reduce((s, i) => s + i.taxCents, 0),
     costCents: items.reduce((s, i) => s + i.lineCostCents, 0),
-    payments: [{ method: opts.method ?? 'cash', amountCents: total }],
+    payments: opts.payments ?? [{ method: opts.method ?? 'cash', amountCents: total }],
     cashReceivedCents: total,
     changeCents: 0,
     status: opts.status ?? 'completed',
@@ -374,6 +377,91 @@ describe('reportes: cálculos con fechas exactas', () => {
     });
     // Domingo 8 a las 23:30 local → weekday 7, hora 23.
     expect(pay.hours).toContainEqual({ weekday: 7, hour: 23, salesCents: 3200, tickets: 1 });
+  });
+
+  it('pagos con categoría o producto: solo esos renglones, y cuadra con el resumen', async () => {
+    const s = await scenario();
+    const auth = bearer(s.adminA);
+    // Ticket mixto con pago dividido: camarón 19450 + cerveza 9600 = 29050 (20000 efectivo + 9050 tarjeta).
+    await insertSale(
+      s.A,
+      '2026-03-12T18:00:00Z',
+      [
+        { ...SHRIMP, categoryId: s.seafood._id, qty: 500 },
+        { ...BEER, categoryId: s.drinks._id, qty: 3 },
+      ],
+      {
+        cashier: s.ana,
+        cashierName: 'Ana',
+        payments: [
+          { method: 'cash', amountCents: 20000 },
+          { method: 'card', amountCents: 9050 },
+        ],
+      },
+    );
+    type Row = { salesCents: number; tickets: number };
+    const sum = (rows: Row[]) => rows.reduce((t, r) => t + r.salesCents, 0);
+    const filters: Record<string, string>[] = [
+      {},
+      { categoryId: String(s.drinks._id) },
+      { categoryId: String(s.seafood._id) },
+      { productId: String(SHRIMP.productId) },
+    ];
+    for (const filter of filters) {
+      const q = { ...MARCH, ...filter };
+      const totals = (await get(auth, 'summary', q)).body.data.totals;
+      const pay = (await get(auth, 'payments', q)).body.data;
+      const label = JSON.stringify(filter);
+      expect(pay.totalCents, label).toBe(totals.salesCents);
+      expect(sum(pay.byCashier), label).toBe(totals.salesCents);
+      expect(sum(pay.hours), label).toBe(totals.salesCents);
+      expect(
+        pay.byCashier.reduce((t: number, r: Row) => t + r.tickets, 0),
+        label,
+      ).toBe(totals.tickets);
+    }
+
+    const drinks = (await get(auth, 'payments', { ...MARCH, categoryId: String(s.drinks._id) }))
+      .body.data;
+    const byMethod = Object.fromEntries(
+      drinks.byMethod.map((m: { method: string; amountCents: number }) => [
+        m.method,
+        m.amountCents,
+      ]),
+    );
+    // Cerveza del ticket dividido (9600): 9600·20000/29050 = 6609 en efectivo, el resto (2991) en tarjeta.
+    expect(byMethod).toEqual({ cash: 6400 + 6609, card: 19200 + 2991, transfer: 3200, other: 0 });
+    expect(drinks.byCashier).toEqual([
+      expect.objectContaining({ name: 'Beto', salesCents: 19200 + 3200, tickets: 2 }),
+      expect.objectContaining({ name: 'Ana', salesCents: 6400 + 9600, tickets: 2 }),
+    ]);
+
+    const drinksByCard = (
+      await get(auth, 'payments', { ...MARCH, categoryId: String(s.drinks._id), method: 'card' })
+    ).body.data;
+    expect(drinksByCard.totalCents).toBe(19200 + 2991);
+  });
+
+  it('compras por categoría: solo los renglones de sus productos (igual que el resumen)', async () => {
+    const s = await scenario();
+    const auth = bearer(s.adminA);
+    await Product.collection.insertMany([
+      { _id: SHRIMP.productId, businessId: s.A, code: '101', categoryId: s.seafood._id },
+      { _id: BEER.productId, businessId: s.A, code: '402', categoryId: s.drinks._id },
+    ]);
+    const q = { ...MARCH, categoryId: String(s.drinks._id) };
+    const data = (await get(auth, 'purchases', q)).body.data;
+    expect(data).toMatchObject({ totalCents: 45600, count: 1 });
+    expect(data.bySupplier.map((x: { name: string }) => x.name)).toEqual(['Distribuidora Bahía']);
+    expect(data.byProduct.map((p: { code: string }) => p.code)).toEqual(['402']);
+    expect(data.points.reduce((t: number, p: { totalCents: number }) => t + p.totalCents, 0)).toBe(
+      45600,
+    );
+    expect((await get(auth, 'summary', q)).body.data.totals.purchasesCents).toBe(45600);
+    const otherBusiness = (
+      await get(bearer(s.adminB), 'purchases', { ...MARCH, categoryId: String(s.drinks._id) })
+    ).body.data;
+    expect(otherBusiness.totalCents).toBe(0);
   });
 
   it('compras: serie, proveedores y costo promedio por unidad (sin canceladas)', async () => {
